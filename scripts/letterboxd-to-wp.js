@@ -99,7 +99,8 @@ for (const it of items) {
   if (newGuids.length >= MAX_POSTS_PER_RUN) break;
 
   const guid = it.guid._ || it.guid;
-  if (processed.has(guid)) continue;
+  const slug = `lb-${guid}`;
+  if (await slugExists(slug)) continue;
 
   const title = it['letterboxd:filmTitle'];
   const year = it['letterboxd:filmYear'];
@@ -127,7 +128,7 @@ for (const it of items) {
 async function getProcessed() {
   const seen = new Set();
   let page = 1;
-  const per = 100;              // WordPress cap
+  const per = 1000;
 
   while (true) {
     const url = `${WP_BASE}/posts?number=${per}&page=${page}&fields=slug`;
@@ -148,3 +149,15 @@ async function getProcessed() {
   }
   return seen;
 }
+
+const slugExists = async slug => {
+  const url =
+    `${WP_BASE}/posts?number=1&search=${encodeURIComponent(slug)}&` +
+    `search_columns=slug&fields=ID`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) throw new Error(`Slug lookup failed ${res.status}`);
+  const { posts } = await res.json();
+  return posts.length > 0;
+};
