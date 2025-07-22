@@ -1,0 +1,22 @@
+name: Sync Letterboxd → WP
+on:
+  schedule:
+    - cron: '15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+      - run: npm run letterboxd
+        env:
+          LETTERBOXD_USER: ${{ secrets.LETTERBOXD_USER }}
+          WP_SITE: ${{ secrets.WP_SITE }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          MOVIE_CATEGORY_ID: ${{ secrets.MOVIE_CATEGORY_ID }}
