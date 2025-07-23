@@ -64,6 +64,8 @@ const newGuids = [];
 for (const [index, it] of Object.entries(items)) {
   if (newGuids.length >= MAX_POSTS_PER_RUN) break;
 
+  // if(index != 0) continue; // Uncomment to test with only the first item
+
   const guid = it.guid._ || it.guid;
   const slug = `lb-${guid}`;
 
@@ -75,6 +77,11 @@ for (const [index, it] of Object.entries(items)) {
   const watched = it['letterboxd:watchedDate'];
   const reviewHtml = (it.description || '').replace(/<p><img[^>]+><\/p>/, '').trim();
 
+  let postDate = undefined;
+  if (watched) {
+    postDate = `${watched}T12:00:00Z`;
+  }
+
   const post = await wpPost('/posts/new', {
     title: `${title} (${year}) - ${rating}★`,
     content: `
@@ -83,7 +90,8 @@ for (const [index, it] of Object.entries(items)) {
       ${reviewHtml}`,
     status: 'publish',
     categories: [Number(MOVIE_CATEGORY_ID)],
-    slug: `lb-${guid}`
+    slug: `lb-${guid}`,
+    ...(postDate && { date: postDate })
   });
 
   console.log('Posted:', post.URL);
