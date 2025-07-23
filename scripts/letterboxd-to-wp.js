@@ -21,33 +21,23 @@ const authHeader = 'Basic ' + Buffer.from(`${WP_USER}:${WP_APP_PASSWORD}`).toStr
 
 const lastRunKey = 'letterboxd_last_guids';
 
-// utilities
 
-let accessToken = process.env.WP_APP_PASSWORD; // TODO: obtain Access Token from refresh func
+let accessToken = process.env.WP_APP_PASSWORD;
 const clientId = process.env.WP_CLIENT_ID;
 const clientSec = process.env.WP_CLIENT_SECRET;
 
-const bearer = () => ({ Authorization: `Bearer ${accessToken}` });
 
-async function refreshTokenIfNeeded(res) {
-  if (res.status !== 401) return res;        // still valid
-  console.log('🔄  Access token expired – refreshing…');
-
-  const form = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSec,
-    grant_type: 'refresh_token',
-    refresh_token: refreshTok
+const slugExists = async slug => {
+  const url =
+    `${WP_BASE}/posts?number=1&search=${encodeURIComponent(slug)}&` +
+    `search_columns=slug&fields=ID`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
   });
-  const r = await fetch('https://public-api.wordpress.com/oauth2/token', {
-    method: 'POST',
-    body: form
-  }).then(r => r.json());
-
-  if (!r.access_token) throw new Error('Failed to refresh token');
-  accessToken = r.access_token;              // update token in memory
-  return null;                               // caller will retry
-}
+  if (!res.ok) throw new Error(`Slug lookup failed ${res.status}`);
+  const { posts } = await res.json();
+  return posts.length > 0;
+};
 
 
 const wpGet = async path => {
@@ -56,7 +46,7 @@ const wpGet = async path => {
     headers: { Authorization: authHeader }
   });
 
-  if (res.status === 404) return null;         // option not created yet
+  if (res.status === 404) return null;
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`WP GET ${path} → ${res.status}\n${txt}`);
@@ -66,7 +56,7 @@ const wpGet = async path => {
 
 const wpPost = async (path, body) => {
 
-  console.log(`POST ${path}`, JSON.stringify(body, null, 2));
+  // console.log(`POST ${path}`, JSON.stringify(body, null, 2));
 
   const res = await fetch(`${WP_BASE}${path}`, {
     method: 'POST',
@@ -92,7 +82,6 @@ const wpPost = async (path, body) => {
 const xml = await fetch(RSS_URL).then(r => r.text());
 const rss = await parseStringPromise(xml, { explicitArray: false });
 const items = [].concat(rss.rss.channel.item || []);
-const processed = await getProcessed();
 const newGuids = [];
 
 for (const it of items) {
@@ -124,40 +113,3 @@ for (const it of items) {
 
   await sleep(POST_DELAY_MS);  // throttle between calls
 }
-
-async function getProcessed() {
-  const seen = new Set();
-  let page = 1;
-  const per = 1000;
-
-  while (true) {
-    const url = `${WP_BASE}/posts?number=${per}&page=${page}&fields=slug`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-
-    if (!res.ok) throw new Error(`Post scan failed ${res.status}`);
-    const { posts } = await res.json();      // unpack array
-    if (!posts.length) break;                // no more pages
-
-    posts
-      .filter(p => p.slug.startsWith('lb-'))
-      .forEach(p => seen.add(p.slug.replace(/^lb-/, '')));
-
-    if (posts.length < per) break;           // hit last page
-    page++;
-  }
-  return seen;
-}
-
-const slugExists = async slug => {
-  const url =
-    `${WP_BASE}/posts?number=1&search=${encodeURIComponent(slug)}&` +
-    `search_columns=slug&fields=ID`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  if (!res.ok) throw new Error(`Slug lookup failed ${res.status}`);
-  const { posts } = await res.json();
-  return posts.length > 0;
-};
