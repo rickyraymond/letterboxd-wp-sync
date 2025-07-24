@@ -20,17 +20,16 @@ const WP_BASE = `https://public-api.wordpress.com/rest/v1.1/sites/${WP_SITE}`;
 let accessToken = process.env.WP_APP_PASSWORD;
 
 const slugExists = async slug => {
-  const url = `${WP_BASE}/posts?slug=${encodeURIComponent(slug)}&_fields=ID`;
-
-  console.log(`slugExists(${slug})`, url);
+  const url = `${WP_BASE}/posts/slug:${encodeURIComponent(slug)}?_fields=ID`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
+  if (res.status === 404) return false;
   if (!res.ok) throw new Error(`Slug lookup failed ${res.status}`);
-  const { posts } = await res.json();
-  return posts.length > 0;
+
+  return true;
 };
 
 const wpPost = async (path, body) => {
@@ -64,10 +63,12 @@ const newGuids = [];
 for (const [index, it] of Object.entries(items)) {
   if (newGuids.length >= MAX_POSTS_PER_RUN) break;
 
-  // if(index != 0) continue; // Uncomment to test with only the first item
+  // if (index != 0) continue; // Uncomment to test with only the first item
 
   const guid = it.guid._ || it.guid;
   const slug = `lb-${guid}`;
+
+  console.log(`Processing item ${index + 1}: ${guid}, ${slug}`);
 
   if (await slugExists(slug)) continue;
 
